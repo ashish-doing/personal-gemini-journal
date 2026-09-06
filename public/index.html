@@ -4,77 +4,282 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Personal Gemini Journal</title>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
 <style>
-  :root { --bg:#0f1115; --panel:#171a21; --border:#262b36; --text:#e8eaed; --muted:#8b92a3; --accent:#7c9eff; }
+  :root {
+    --bg:#0f1115; --panel:#171a21; --panel2:#1c202a; --border:#262b36;
+    --text:#e8eaed; --muted:#8b92a3;
+    --blue:#4285F4; --red:#EA4335; --yellow:#FBBC05; --green:#34A853;
+    --accent: var(--blue);
+  }
   * { box-sizing: border-box; }
-  body { margin:0; font-family: -apple-system, Segoe UI, Roboto, sans-serif; background:var(--bg); color:var(--text); }
-  #auth-screen, #app-screen { max-width: 720px; margin: 0 auto; padding: 24px; }
+  body {
+    margin:0; font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: radial-gradient(1200px 600px at 10% -10%, #14182a 0%, var(--bg) 45%),
+                radial-gradient(1000px 500px at 100% 0%, #1a1420 0%, var(--bg) 40%),
+                var(--bg);
+    color: var(--text); min-height:100vh;
+  }
   .hidden { display:none !important; }
-  h1 { font-size: 20px; font-weight: 600; }
-  .panel { background: var(--panel); border:1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
-  input, button, textarea { font: inherit; }
-  input[type=email], input[type=password] { width:100%; padding:10px; margin-bottom:8px; background:#0f1115; border:1px solid var(--border); border-radius:8px; color:var(--text); }
-  button { cursor:pointer; border:none; border-radius:8px; padding:10px 14px; background:var(--accent); color:#0f1115; font-weight:600; }
-  button.secondary { background:transparent; border:1px solid var(--border); color:var(--text); }
-  button:disabled { opacity:.5; cursor:not-allowed; }
-  #messages { display:flex; flex-direction:column; gap:8px; max-height:50vh; overflow-y:auto; margin-bottom:12px; }
-  .msg { padding:10px 12px; border-radius:10px; max-width:85%; white-space:pre-wrap; }
-  .msg.user { align-self:flex-end; background:var(--accent); color:#0f1115; }
-  .msg.model { align-self:flex-start; background:#20242e; }
-  #chat-input-row { display:flex; gap:8px; }
-  #chat-input-row textarea { flex:1; min-height:44px; padding:10px; background:#0f1115; border:1px solid var(--border); border-radius:8px; color:var(--text); resize:vertical; }
-  .row { display:flex; justify-content:space-between; align-items:center; }
+  a { color: var(--blue); }
+
+  /* ---------- Google-style multicolor logo text ---------- */
+  .glogo { font-size: 30px; font-weight: 700; letter-spacing: -0.5px; }
+  .glogo span:nth-child(1) { color: var(--blue); }
+  .glogo span:nth-child(2) { color: var(--red); }
+  .glogo span:nth-child(3) { color: var(--yellow); }
+  .glogo span:nth-child(4) { color: var(--blue); }
+  .glogo span:nth-child(5) { color: var(--green); }
+  .glogo span:nth-child(6) { color: var(--red); }
+
+  /* ---------- Auth screens ---------- */
+  #auth-wrap { min-height: 100vh; display:flex; align-items:center; justify-content:center; padding: 24px; }
+  .auth-card {
+    width: 100%; max-width: 400px; background: var(--panel);
+    border:1px solid var(--border); border-radius: 16px; padding: 32px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+  }
+  .auth-card h1 { text-align:left; margin: 0 0 4px 0; }
+  .auth-card p.sub { text-align:left; color:var(--muted); margin: 0 0 24px 0; font-size: 14px; }
+  .field-label { font-size: 13px; color: var(--muted); margin-bottom: 6px; display:block; text-align:left; }
+  input[type=email], input[type=password] {
+    width:100%; padding:12px; margin-bottom:16px; background:#0f1115;
+    border:1px solid var(--border); border-radius:10px; color:var(--text); font-size: 14px;
+  }
+  input[type=email]:focus, input[type=password]:focus {
+    outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(66,133,244,0.15);
+  }
+  .btn-primary {
+    width:100%; cursor:pointer; border:none; border-radius:10px; padding:12px 14px;
+    background: linear-gradient(90deg, var(--blue), #5b9bff); color:#fff; font-weight:600; font-size: 14px;
+  }
+  .btn-primary:disabled { opacity:.5; cursor:not-allowed; }
+  .switch-row { text-align:left; margin-top: 18px; font-size: 13px; color: var(--muted); }
+  .switch-link { color: var(--blue); cursor:pointer; font-weight:600; text-decoration:none; }
+  .switch-link:hover { text-decoration: underline; }
+  .auth-error { color:#ff6b6b; font-size: 13px; margin-top: 10px; min-height: 16px; text-align:left; }
+  .dots { display:flex; gap:6px; margin-bottom: 20px; }
+  .dot { width:8px; height:8px; border-radius:50%; }
+  .dot:nth-child(1){background:var(--blue);} .dot:nth-child(2){background:var(--red);}
+  .dot:nth-child(3){background:var(--yellow);} .dot:nth-child(4){background:var(--green);}
+
+  /* ---------- App layout: full-width, 2:1 ---------- */
+  #app-screen { max-width: 1680px; margin: 0 auto; padding: 20px 32px 40px; width: 100%; }
+  .topbar {
+    display:flex; justify-content:space-between; align-items:center; margin-bottom: 22px;
+    text-align:left; position: sticky; top:0; z-index: 5; padding: 10px 0;
+    background: linear-gradient(var(--bg) 70%, transparent);
+  }
+  .topbar .who { display:flex; align-items:center; gap:12px; }
+  .who .email { color: var(--muted); font-size: 13px; }
+  button.secondary {
+    cursor:pointer; background:transparent; border:1px solid var(--border); color:var(--text);
+    border-radius:8px; padding:8px 12px; font-size: 13px;
+  }
+  button.secondary:hover { border-color: var(--muted); }
+
+  .layout { display:grid; grid-template-columns: 2fr 1fr; gap: 24px; align-items:start; text-align:left; }
+  @media (max-width: 960px) { .layout { grid-template-columns: 1fr; } }
+
+  .panel {
+    background: var(--panel); border:1px solid var(--border); border-radius: 14px;
+    padding: 20px; margin-bottom: 18px;
+  }
+  .panel h2 { font-size: 15px; margin: 0 0 14px 0; font-weight:600; }
+
+  #messages { display:flex; flex-direction:column; gap:12px; max-height:56vh; overflow-y:auto; margin-bottom:14px; padding-right:6px; }
+  .msg { padding:12px 16px; border-radius:14px; max-width:78%; font-size: 14.5px; line-height:1.55; }
+  .msg.user { align-self:flex-end; background: linear-gradient(135deg, var(--blue), #3f6fd6); color:#fff; border-bottom-right-radius:4px; white-space:pre-wrap; }
+  .msg.model { align-self:flex-start; background:var(--panel2); border-bottom-left-radius:4px; }
+  .msg img.thumb { max-width: 180px; border-radius:8px; display:block; margin-top:8px; }
+
+  /* ---------- Rendered markdown inside Gemini replies ---------- */
+  .msg.model h1, .msg.model h2, .msg.model h3 { margin: 4px 0 8px; font-size: 15px; font-weight:700; color:#fff; }
+  .msg.model p { margin: 0 0 10px; }
+  .msg.model p:last-child { margin-bottom: 0; }
+  .msg.model ul, .msg.model ol { margin: 4px 0 10px; padding-left: 22px; }
+  .msg.model li { margin: 4px 0; }
+  .msg.model li input[type=checkbox] { margin-right:8px; transform: translateY(1px); }
+  .msg.model strong { color: #fff; font-weight:700; }
+  .msg.model em { color: var(--muted); }
+  .msg.model code { background: #0f1115; padding:2px 6px; border-radius:5px; font-size:12.5px; border:1px solid var(--border); }
+  .msg.model pre { background: #0f1115; padding:10px 12px; border-radius:8px; overflow-x:auto; border:1px solid var(--border); }
+  .msg.model pre code { border:none; padding:0; }
+  .msg.model hr { border:none; border-top:1px solid var(--border); margin: 12px 0; }
+  .msg.model blockquote { border-left: 3px solid var(--blue); margin: 6px 0; padding-left: 12px; color: var(--muted); }
+
+  #chat-input-row { display:flex; gap:8px; align-items:flex-end; }
+  #chat-input-row textarea {
+    flex:1; min-height:48px; padding:12px; background:#0f1115; border:1px solid var(--border);
+    border-radius:10px; color:var(--text); resize:vertical; font-size:14px;
+  }
+  #chat-input-row textarea:focus { outline:none; border-color: var(--blue); }
+  .icon-btn {
+    cursor:pointer; background:var(--panel2); border:1px solid var(--border); color:var(--text);
+    border-radius:10px; width:48px; height:48px; display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0;
+  }
+  .icon-btn:hover { border-color: var(--muted); }
+  #sendBtn {
+    cursor:pointer; border:none; border-radius:10px; padding:0 20px; height:48px;
+    background: linear-gradient(90deg, var(--blue), #5b9bff); color:#fff; font-weight:600; flex-shrink:0;
+  }
+  #sendBtn:disabled { opacity:.5; cursor:not-allowed; }
+
+  #imagePreviewRow { display:flex; gap:8px; flex-wrap:wrap; margin: 10px 0; }
+  .preview-thumb { position:relative; width:56px; height:56px; border-radius:8px; overflow:hidden; border:1px solid var(--border); }
+  .preview-thumb img { width:100%; height:100%; object-fit:cover; }
+  .preview-thumb .rm {
+    position:absolute; top:2px; right:2px; background:rgba(0,0,0,0.6); color:#fff; border:none;
+    border-radius:50%; width:16px; height:16px; font-size:10px; line-height:16px; cursor:pointer; padding:0;
+  }
+
+  .row-between { display:flex; justify-content:space-between; align-items:center; margin-top:12px; }
   .muted { color: var(--muted); font-size: 13px; }
-  #rdi-summary { font-size: 14px; margin-top:8px; }
+  #rdi-summary { font-size: 14px; margin-top:12px; line-height:1.5; }
+  #rdi-summary strong { color: var(--yellow); }
+
   svg text { fill: var(--muted); font-size: 10px; }
+
+  /* ---------- Memory sidebar: one thumbnail per session ---------- */
+  .memory-list { display:flex; flex-direction:column; gap:10px; }
+  .memory-card {
+    display:flex; gap:10px; align-items:center; border-radius:10px; overflow:hidden;
+    border:1px solid var(--border); background:var(--panel2); padding:8px; cursor:pointer;
+  }
+  .memory-card:hover { border-color: var(--muted); }
+  .memory-thumb-wrap { position:relative; width:64px; height:64px; flex-shrink:0; border-radius:8px; overflow:hidden; }
+  .memory-thumb-wrap img { width:100%; height:100%; object-fit:cover; display:block; }
+  .memory-count-badge {
+    position:absolute; bottom:3px; right:3px; background:rgba(0,0,0,0.75); color:#fff;
+    font-size:10px; font-weight:700; border-radius:6px; padding:1px 5px;
+  }
+  .memory-meta { display:flex; flex-direction:column; gap:2px; overflow:hidden; }
+  .memory-meta .date { font-size: 12.5px; font-weight:600; }
+  .memory-meta .count-label { font-size: 11.5px; color: var(--muted); }
+  .memory-empty { color: var(--muted); font-size: 13px; text-align:center; padding: 24px 0; }
+
+  /* ---------- Lightbox ---------- */
+  #lightbox {
+    position:fixed; inset:0; background:rgba(5,6,10,0.9); z-index: 50;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; padding: 40px;
+  }
+  #lightbox .lb-header { display:flex; justify-content:space-between; align-items:center; width:100%; max-width: 900px; margin-bottom: 14px; }
+  #lightbox .lb-title { font-size: 14px; color: var(--muted); }
+  #lightbox .lb-close {
+    cursor:pointer; background:var(--panel2); border:1px solid var(--border); color:#fff;
+    border-radius:8px; width:32px; height:32px; font-size:16px;
+  }
+  #lightbox .lb-grid {
+    display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:14px;
+    max-width: 900px; max-height: 75vh; overflow-y:auto; width:100%;
+  }
+  #lightbox .lb-grid img { width:100%; border-radius:10px; display:block; }
 </style>
 </head>
 <body>
 
-<!-- ============ AUTH SCREEN ============ -->
-<div id="auth-screen">
-  <div class="panel">
-    <h1>Personal Gemini Journal</h1>
-    <p class="muted">Sign in to start journaling with Gemini.</p>
-    <input id="email" type="email" placeholder="Email" autocomplete="email" />
-    <input id="password" type="password" placeholder="Password" autocomplete="current-password" />
-    <div class="row">
-      <button id="signInBtn">Sign in</button>
-      <button id="signUpBtn" class="secondary">Create account</button>
+<!-- ============ AUTH: SIGN IN ============ -->
+<div id="signin-screen">
+  <div id="auth-wrap">
+    <div class="auth-card">
+      <div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+      <div class="glogo"><span>P</span><span>e</span><span>r</span><span>s</span><span>o</span><span>nal</span> Journal</div>
+      <p class="sub">Sign in to continue journaling with Gemini.</p>
+
+      <label class="field-label" for="si-email">Email</label>
+      <input id="si-email" type="email" placeholder="you@example.com" autocomplete="email" />
+      <label class="field-label" for="si-password">Password</label>
+      <input id="si-password" type="password" placeholder="••••••••" autocomplete="current-password" />
+
+      <button id="signInBtn" class="btn-primary">Sign in</button>
+      <p id="signInError" class="auth-error"></p>
+
+      <div class="switch-row">
+        New here? <a class="switch-link" id="goToSignUp">Create an account</a>
+      </div>
     </div>
-    <p id="authError" class="muted" style="color:#ff6b6b;"></p>
+  </div>
+</div>
+
+<!-- ============ AUTH: CREATE ACCOUNT ============ -->
+<div id="signup-screen" class="hidden">
+  <div id="auth-wrap">
+    <div class="auth-card">
+      <div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+      <div class="glogo"><span>C</span><span>r</span><span>e</span><span>a</span><span>t</span><span>e</span> account</div>
+      <p class="sub">Start your reflection journal with Gemini.</p>
+
+      <label class="field-label" for="su-email">Email</label>
+      <input id="su-email" type="email" placeholder="you@example.com" autocomplete="email" />
+      <label class="field-label" for="su-password">Password</label>
+      <input id="su-password" type="password" placeholder="At least 6 characters" autocomplete="new-password" />
+
+      <button id="signUpBtn" class="btn-primary">Create account</button>
+      <p id="signUpError" class="auth-error"></p>
+
+      <div class="switch-row">
+        Already have an account? <a class="switch-link" id="goToSignIn">Sign in</a>
+      </div>
+    </div>
   </div>
 </div>
 
 <!-- ============ APP SCREEN ============ -->
 <div id="app-screen" class="hidden">
-  <div class="row">
-    <h1>Journal</h1>
-    <div>
-      <span id="userEmail" class="muted"></span>
+  <div class="topbar">
+    <div class="glogo" style="font-size:22px;"><span>J</span><span>o</span><span>u</span><span>r</span><span>n</span><span>al</span></div>
+    <div class="who">
+      <span id="userEmail" class="email"></span>
       <button id="signOutBtn" class="secondary">Sign out</button>
     </div>
   </div>
 
-  <div class="panel">
-    <div id="messages"></div>
-    <div id="chat-input-row">
-      <textarea id="messageInput" placeholder="What's on your mind today?"></textarea>
-      <button id="sendBtn">Send</button>
-    </div>
-    <div class="row" style="margin-top:10px;">
-      <span class="muted" id="sessionStatus">New session</span>
-      <button id="endSessionBtn" class="secondary">End session &amp; score</button>
-    </div>
-    <div id="rdi-summary"></div>
-  </div>
+  <div class="layout">
+    <!-- LEFT (2fr): chat -->
+    <div>
+      <div class="panel">
+        <div id="messages"></div>
 
-  <div class="panel">
-    <div class="row">
-      <h1 style="font-size:16px;">Reflection Depth Index — trend</h1>
+        <div id="imagePreviewRow"></div>
+
+        <div id="chat-input-row">
+          <input id="imageFileInput" type="file" accept="image/*" multiple class="hidden" />
+          <div class="icon-btn" id="attachBtn" title="Attach images">📷</div>
+          <textarea id="messageInput" placeholder="What's on your mind today?"></textarea>
+          <button id="sendBtn">Send</button>
+        </div>
+
+        <div class="row-between">
+          <span class="muted" id="sessionStatus">New session</span>
+          <button id="endSessionBtn" class="secondary">End session &amp; score</button>
+        </div>
+        <div id="rdi-summary"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Reflection Depth Index — trend</h2>
+        <svg id="rdiChart" width="100%" height="120" viewBox="0 0 600 120" preserveAspectRatio="none"></svg>
+      </div>
     </div>
-    <svg id="rdiChart" width="100%" height="120" viewBox="0 0 600 120" preserveAspectRatio="none"></svg>
+
+    <!-- RIGHT (1fr): memory sidebar, one card per session -->
+    <div class="panel">
+      <h2>📅 Day Memory</h2>
+      <div id="memoryList" class="memory-list">
+        <div class="memory-empty">No photos yet — attach one from the 📷 button while journaling.</div>
+      </div>
+    </div>
   </div>
+</div>
+
+<!-- ============ LIGHTBOX (hidden by default) ============ -->
+<div id="lightbox" class="hidden">
+  <div class="lb-header">
+    <span class="lb-title" id="lbTitle"></span>
+    <button class="lb-close" id="lbClose">✕</button>
+  </div>
+  <div class="lb-grid" id="lbGrid"></div>
 </div>
 
 <!-- Firebase modular SDK (client-side; the config below is a PUBLIC identifier, not a secret) -->
@@ -89,63 +294,156 @@
     orderBy, limit, getDocs, serverTimestamp
   } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
-  // TODO: replace with YOUR Firebase project's web config (Project settings → General → Your apps).
-  // This is public by design — Firestore security rules (firestore.rules) are what actually protect data.
   const firebaseConfig = {
-  apiKey: "AIzaSyA9yas27DPWP4aiPnwL5hP-50337M9wTwM",
-  authDomain: "ashish-gemini-journal.firebaseapp.com",
-  projectId: "ashish-gemini-journal",
-  storageBucket: "ashish-gemini-journal.firebasestorage.app",
-  messagingSenderId: "15125922831",
-  appId: "1:15125922831:web:567b7abaa27159e4754f7a",
-  measurementId: "G-BFFMJ28Z6F"
-};
+    apiKey: "AIzaSyA9yas27DPWP4aiPnwL5hP-50337M9wTwM",
+    authDomain: "ashish-gemini-journal.firebaseapp.com",
+    projectId: "ashish-gemini-journal",
+    storageBucket: "ashish-gemini-journal.firebasestorage.app",
+    messagingSenderId: "15125922831",
+    appId: "1:15125922831:web:567b7abaa27159e4754f7a",
+    measurementId: "G-BFFMJ28Z6F"
+  };
 
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
   const db = getFirestore(app);
 
-  // Same-origin on Cloud Run in production; override for local dev if serving frontend separately.
   const API_BASE = window.location.origin;
+  const $ = (id) => document.getElementById(id);
+
+  // marked config: GFM enables task-list checkboxes (- [ ] item) and tables
+  marked.setOptions({ gfm: true, breaks: true });
+  function renderMarkdown(text) {
+    return DOMPurify.sanitize(marked.parse(text || ""));
+  }
 
   let currentUser = null;
   let currentSessionId = null;
-  let history = [];      // Gemini-format: [{role:'user'|'model', parts:[{text}]}]
-  let transcriptLines = []; // plain text lines for the RDI scoring call
+  let history = [];
+  let transcriptLines = [];
+  let pendingImages = []; // [{dataUrl, name}] queued to send
+  let sessionImages = [];  // images attached during the CURRENT in-progress session
 
-  const $ = (id) => document.getElementById(id);
+  // ---------- Auth screen switching ----------
+  function showSignIn() {
+    $("signup-screen").classList.add("hidden");
+    $("signin-screen").classList.remove("hidden");
+  }
+  function showSignUp() {
+    $("signin-screen").classList.add("hidden");
+    $("signup-screen").classList.remove("hidden");
+  }
+  $("goToSignUp").onclick = showSignUp;
+  $("goToSignIn").onclick = showSignIn;
 
-  // ---------- Auth ----------
   $("signInBtn").onclick = async () => {
+    $("signInError").textContent = "";
+    $("signInBtn").disabled = true;
     try {
-      await signInWithEmailAndPassword(auth, $("email").value, $("password").value);
-    } catch (e) { $("authError").textContent = e.message; }
+      await signInWithEmailAndPassword(auth, $("si-email").value, $("si-password").value);
+    } catch (e) {
+      $("signInError").textContent = e.message;
+    } finally {
+      $("signInBtn").disabled = false;
+    }
   };
+
   $("signUpBtn").onclick = async () => {
+    $("signUpError").textContent = "";
+    $("signUpBtn").disabled = true;
     try {
-      await createUserWithEmailAndPassword(auth, $("email").value, $("password").value);
-    } catch (e) { $("authError").textContent = e.message; }
+      await createUserWithEmailAndPassword(auth, $("su-email").value, $("su-password").value);
+    } catch (e) {
+      $("signUpError").textContent = e.message;
+    } finally {
+      $("signUpBtn").disabled = false;
+    }
   };
+
   $("signOutBtn").onclick = () => signOut(auth);
 
   onAuthStateChanged(auth, (user) => {
     currentUser = user;
     if (user) {
-      $("auth-screen").classList.add("hidden");
+      $("signin-screen").classList.add("hidden");
+      $("signup-screen").classList.add("hidden");
       $("app-screen").classList.remove("hidden");
       $("userEmail").textContent = user.email;
       loadRdiTrend();
+      loadRecentMemory();
     } else {
-      $("auth-screen").classList.remove("hidden");
       $("app-screen").classList.add("hidden");
+      showSignIn();
     }
   });
 
+  // ---------- Image attach ----------
+  $("attachBtn").onclick = () => $("imageFileInput").click();
+
+  $("imageFileInput").onchange = async (e) => {
+    const files = Array.from(e.target.files || []);
+    for (const file of files) {
+      const dataUrl = await compressImage(file, 640, 0.7);
+      pendingImages.push({ dataUrl, name: file.name });
+    }
+    e.target.value = "";
+    renderPreviewRow();
+  };
+
+  function compressImage(file, maxDim, quality) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          let { width, height } = img;
+          if (width > height && width > maxDim) { height = height * (maxDim / width); width = maxDim; }
+          else if (height > maxDim) { width = width * (maxDim / height); height = maxDim; }
+          const canvas = document.createElement("canvas");
+          canvas.width = width; canvas.height = height;
+          canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL("image/jpeg", quality));
+        };
+        img.onerror = reject;
+        img.src = reader.result;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function renderPreviewRow() {
+    const row = $("imagePreviewRow");
+    row.innerHTML = "";
+    pendingImages.forEach((img, i) => {
+      const div = document.createElement("div");
+      div.className = "preview-thumb";
+      div.innerHTML = `<img src="${img.dataUrl}" /><button class="rm" data-i="${i}">×</button>`;
+      row.appendChild(div);
+    });
+    row.querySelectorAll(".rm").forEach((btn) => {
+      btn.onclick = () => {
+        pendingImages.splice(Number(btn.dataset.i), 1);
+        renderPreviewRow();
+      };
+    });
+  }
+
   // ---------- Chat ----------
-  function appendMessage(role, text) {
+  function appendMessage(role, text, images) {
     const div = document.createElement("div");
     div.className = "msg " + (role === "user" ? "user" : "model");
-    div.textContent = text;
+    if (role === "user") {
+      div.textContent = text;
+    } else {
+      div.innerHTML = renderMarkdown(text);
+    }
+    (images || []).forEach((img) => {
+      const el = document.createElement("img");
+      el.className = "thumb";
+      el.src = img.dataUrl;
+      div.appendChild(el);
+    });
     $("messages").appendChild(div);
     $("messages").scrollTop = $("messages").scrollHeight;
   }
@@ -163,13 +461,24 @@
 
   $("sendBtn").onclick = async () => {
     const text = $("messageInput").value.trim();
-    if (!text) return;
+    const imagesToSend = [...pendingImages];
+    if (!text && imagesToSend.length === 0) return;
+
     $("messageInput").value = "";
+    pendingImages = [];
+    renderPreviewRow();
     $("sendBtn").disabled = true;
 
-    appendMessage("user", text);
-    transcriptLines.push("User: " + text);
+    appendMessage("user", text, imagesToSend);
+    if (text) transcriptLines.push("User: " + text);
+    if (imagesToSend.length) {
+      transcriptLines.push(`User attached ${imagesToSend.length} image(s): ${imagesToSend.map(i => i.name).join(", ")}`);
+      sessionImages.push(...imagesToSend.map(i => ({ dataUrl: i.dataUrl, name: i.name, at: new Date().toISOString() })));
+      renderMemoryLive();
+    }
     await ensureSession();
+
+    if (!text) { $("sendBtn").disabled = false; return; } // image-only message, no Gemini call needed
 
     try {
       const idToken = await currentUser.getIdToken();
@@ -194,7 +503,7 @@
 
   // ---------- End session + RDI ----------
   $("endSessionBtn").onclick = async () => {
-    if (!currentSessionId || transcriptLines.length === 0) {
+    if (!currentSessionId || (transcriptLines.length === 0 && sessionImages.length === 0)) {
       $("rdi-summary").textContent = "Nothing to score yet — send a message first.";
       return;
     }
@@ -202,39 +511,128 @@
     $("rdi-summary").textContent = "Scoring session…";
 
     try {
-      const idToken = await currentUser.getIdToken();
-      const res = await fetch(API_BASE + "/api/end-session", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + idToken },
-        body: JSON.stringify({ transcript: transcriptLines.join("\n") }),
-      });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Scoring failed");
+      let result = { summary: "Photo-only session — no text to score.", rdi_score: null, rdi_reasoning: "" };
 
-      // Client writes the result to its OWN Firestore doc — gated by firestore.rules.
+      if (transcriptLines.some(l => l.startsWith("User:") || l.startsWith("Journal"))) {
+        const idToken = await currentUser.getIdToken();
+        const res = await fetch(API_BASE + "/api/end-session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": "Bearer " + idToken },
+          body: JSON.stringify({ transcript: transcriptLines.join("\n") }),
+        });
+        result = await res.json();
+        if (!res.ok) throw new Error(result.error || "Scoring failed");
+      }
+
       await updateDoc(doc(db, "users", currentUser.uid, "sessions", currentSessionId), {
         ended: true,
         endedAt: serverTimestamp(),
         summary: result.summary,
         rdiScore: result.rdi_score,
         rdiReasoning: result.rdi_reasoning,
+        images: sessionImages, // stored inline in the same isolated per-user doc
       });
 
-      $("rdi-summary").innerHTML =
-        `<strong>RDI: ${result.rdi_score}/100</strong><br>${result.summary}<br><span class="muted">${result.rdi_reasoning}</span>`;
+      $("rdi-summary").innerHTML = result.rdi_score !== null
+        ? `<strong>RDI: ${result.rdi_score}/100</strong><br>${renderMarkdown(result.summary)}<span class="muted">${result.rdi_reasoning}</span>`
+        : `<span class="muted">${result.summary}</span>`;
 
-      // Reset for a fresh session
       currentSessionId = null;
       history = [];
       transcriptLines = [];
+      sessionImages = [];
       $("sessionStatus").textContent = "New session";
       loadRdiTrend();
+      loadRecentMemory();
     } catch (e) {
       $("rdi-summary").textContent = "⚠️ " + e.message;
     } finally {
       $("endSessionBtn").disabled = false;
     }
   };
+
+  // ---------- Memory sidebar: one card per session, expand for the rest ----------
+  let memorySessions = []; // [{ id, images: [...], dateLabel, live: bool }]
+
+  function formatDateLabel(d) {
+    if (!d) return "";
+    return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  }
+
+  function renderMemoryList() {
+    const list = $("memoryList");
+    list.innerHTML = "";
+
+    if (memorySessions.length === 0) {
+      list.innerHTML = '<div class="memory-empty">No photos yet — attach one from the 📷 button while journaling.</div>';
+      return;
+    }
+
+    memorySessions.forEach((sess) => {
+      const card = document.createElement("div");
+      card.className = "memory-card";
+      const extra = sess.images.length - 1;
+      card.innerHTML = `
+        <div class="memory-thumb-wrap">
+          <img src="${sess.images[0].dataUrl}" />
+          ${extra > 0 ? `<span class="memory-count-badge">+${extra}</span>` : ""}
+        </div>
+        <div class="memory-meta">
+          <span class="date">${sess.live ? "In progress" : sess.dateLabel}</span>
+          <span class="count-label">${sess.images.length} photo${sess.images.length > 1 ? "s" : ""}</span>
+        </div>
+      `;
+      card.onclick = () => openLightbox(sess);
+      list.appendChild(card);
+    });
+  }
+
+  // Live update while the current session is still open (before it's saved to Firestore)
+  function renderMemoryLive() {
+    const liveEntry = { id: "__live__", images: sessionImages.slice().reverse(), dateLabel: "Today", live: true };
+    memorySessions = [liveEntry, ...memorySessions.filter((s) => s.id !== "__live__")];
+    renderMemoryList();
+  }
+
+  async function loadRecentMemory() {
+    const q = query(
+      collection(db, "users", currentUser.uid, "sessions"),
+      orderBy("createdAt", "desc"),
+      limit(15)
+    );
+    const snap = await getDocs(q);
+    const sessions = [];
+    snap.forEach((d) => {
+      const v = d.data();
+      if (v.images && v.images.length) {
+        sessions.push({
+          id: d.id,
+          images: v.images,
+          dateLabel: formatDateLabel(v.createdAt ? v.createdAt.toDate() : null),
+          live: false,
+        });
+      }
+    });
+    memorySessions = sessions;
+    renderMemoryList();
+  }
+
+  // ---------- Lightbox ----------
+  function openLightbox(sess) {
+    $("lbTitle").textContent = `${sess.live ? "In progress" : sess.dateLabel} — ${sess.images.length} photo${sess.images.length > 1 ? "s" : ""}`;
+    const grid = $("lbGrid");
+    grid.innerHTML = "";
+    sess.images.forEach((img) => {
+      const el = document.createElement("img");
+      el.src = img.dataUrl;
+      grid.appendChild(el);
+    });
+    $("lightbox").classList.remove("hidden");
+  }
+  $("lbClose").onclick = () => $("lightbox").classList.add("hidden");
+  $("lightbox").addEventListener("click", (e) => {
+    if (e.target.id === "lightbox") $("lightbox").classList.add("hidden");
+  });
 
   // ---------- RDI trend ----------
   async function loadRdiTrend() {
@@ -249,7 +647,7 @@
       const v = d.data();
       if (typeof v.rdiScore === "number") scores.push(v.rdiScore);
     });
-    scores.reverse(); // chronological
+    scores.reverse();
     drawSparkline(scores);
   }
 
@@ -262,6 +660,7 @@
     }
     const w = 600, h = 120, pad = 10;
     const stepX = scores.length > 1 ? (w - 2 * pad) / (scores.length - 1) : 0;
+    const colors = ["#4285F4", "#EA4335", "#FBBC05", "#34A853"];
     const points = scores.map((s, i) => {
       const x = pad + i * stepX;
       const y = h - pad - (s / 100) * (h - 2 * pad);
@@ -270,15 +669,15 @@
     const path = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
     path.setAttribute("points", points.join(" "));
     path.setAttribute("fill", "none");
-    path.setAttribute("stroke", "#7c9eff");
-    path.setAttribute("stroke-width", "2");
+    path.setAttribute("stroke", "#4285F4");
+    path.setAttribute("stroke-width", "2.5");
     svg.appendChild(path);
 
     scores.forEach((s, i) => {
       const [x, y] = points[i].split(",");
       const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-      circle.setAttribute("cx", x); circle.setAttribute("cy", y); circle.setAttribute("r", "3");
-      circle.setAttribute("fill", "#7c9eff");
+      circle.setAttribute("cx", x); circle.setAttribute("cy", y); circle.setAttribute("r", "4");
+      circle.setAttribute("fill", colors[i % colors.length]);
       svg.appendChild(circle);
     });
   }
