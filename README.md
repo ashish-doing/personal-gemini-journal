@@ -50,27 +50,27 @@ Tested end-to-end on the live Cloud Run deploy → auth → multi-turn chat → 
 ## Screenshots
 
 <p align="center">
-  <img src="screenshots/01-signin.png" width="45%" />
+  <img src="docs/screenshots/01-signin.png" width="45%" />
   &nbsp;&nbsp;
-  <img src="screenshots/02-chat-markdown.png" width="45%" />
+  <img src="docs/screenshots/02-chat-markdown.png" width="45%" />
 </p>
 <p align="center">
   <em>Left: Firebase email/password auth. Right: multi-turn chat with Gemini's replies rendered as real markdown — headings, bold text, and checklists — not raw asterisks.</em>
 </p>
 
 <p align="center">
-  <img src="screenshots/03-rdi-live.png" width="45%" />
+  <img src="docs/screenshots/03-rdi-live.png" width="45%" />
   &nbsp;&nbsp;
-  <img src="screenshots/04-dashboard.png" width="45%" />
+  <img src="docs/screenshots/04-dashboard.png" width="45%" />
 </p>
 <p align="center">
   <em>Left: live incognito test on the deployed Cloud Run URL — a genuinely reflective entry scores <strong>92/100</strong> RDI, visibly higher than earlier low-effort sessions on the same trend line. Right: the full dashboard — chat, RDI trend, and session-grouped Day Memory sidebar in one view.</em>
 </p>
 
 <p align="center">
-  <img src="screenshots/05-landing-hero.png" width="45%" />
+  <img src="docs/screenshots/05-landing-hero.png" width="45%" />
   &nbsp;&nbsp;
-  <img src="screenshots/06-landing-architecture.png" width="45%" />
+  <img src="docs/screenshots/06-landing-architecture.png" width="45%" />
 </p>
 <p align="center">
   <em>The project's <a href="https://ashish-doing.github.io/personal-gemini-journal/">GitHub Pages landing page</a> — hero section stating the RDI thesis, and the architecture breakdown showing why Cloud Run never touches Firestore.</em>
