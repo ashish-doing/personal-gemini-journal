@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Personal Gemini Journal</title>
+<style>
+  :root { --bg:#0f1115; --panel:#171a21; --border:#262b36; --text:#e8eaed; --muted:#8b92a3; --accent:#7c9eff; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: -apple-system, Segoe UI, Roboto, sans-serif; background:var(--bg); color:var(--text); }
+  #auth-screen, #app-screen { max-width: 720px; margin: 0 auto; padding: 24px; }
+  .hidden { display:none !important; }
+  h1 { font-size: 20px; font-weight: 600; }
+  .panel { background: var(--panel); border:1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+  input, button, textarea { font: inherit; }
+  input[type=email], input[type=password] { width:100%; padding:10px; margin-bottom:8px; background:#0f1115; border:1px solid var(--border); border-radius:8px; color:var(--text); }
+  button { cursor:pointer; border:none; border-radius:8px; padding:10px 14px; background:var(--accent); color:#0f1115; font-weight:600; }
+  button.secondary { background:transparent; border:1px solid var(--border); color:var(--text); }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  #messages { display:flex; flex-direction:column; gap:8px; max-height:50vh; overflow-y:auto; margin-bottom:12px; }
+  .msg { padding:10px 12px; border-radius:10px; max-width:85%; white-space:pre-wrap; }
+  .msg.user { align-self:flex-end; background:var(--accent); color:#0f1115; }
+  .msg.model { align-self:flex-start; background:#20242e; }
+  #chat-input-row { display:flex; gap:8px; }
+  #chat-input-row textarea { flex:1; min-height:44px; padding:10px; background:#0f1115; border:1px solid var(--border); border-radius:8px; color:var(--text); resize:vertical; }
+  .row { display:flex; justify-content:space-between; align-items:center; }
+  .muted { color: var(--muted); font-size: 13px; }
+  #rdi-summary { font-size: 14px; margin-top:8px; }
+  svg text { fill: var(--muted); font-size: 10px; }
+</style>
+</head>
+<body>
+
+<!-- ============ AUTH SCREEN ============ -->
+<div id="auth-screen">
+  <div class="panel">
+    <h1>Personal Gemini Journal</h1>
+    <p class="muted">Sign in to start journaling with Gemini.</p>
+    <input id="email" type="email" placeholder="Email" autocomplete="email" />
+    <input id="password" type="password" placeholder="Password" autocomplete="current-password" />
+    <div class="row">
+      <button id="signInBtn">Sign in</button>
+      <button id="signUpBtn" class="secondary">Create account</button>
+    </div>
+    <p id="authError" class="muted" style="color:#ff6b6b;"></p>
+  </div>
+</div>
+
+<!-- ============ APP SCREEN ============ -->
+<div id="app-screen" class="hidden">
+  <div class="row">
+    <h1>Journal</h1>
+    <div>
+      <span id="userEmail" class="muted"></span>
+      <button id="signOutBtn" class="secondary">Sign out</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div id="messages"></div>
+    <div id="chat-input-row">
+      <textarea id="messageInput" placeholder="What's on your mind today?"></textarea>
+      <button id="sendBtn">Send</button>
+    </div>
+    <div class="row" style="margin-top:10px;">
+      <span class="muted" id="sessionStatus">New session</span>
+      <button id="endSessionBtn" class="secondary">End session &amp; score</button>
+    </div>
+    <div id="rdi-summary"></div>
+  </div>
+
+  <div class="panel">
+    <div class="row">
+      <h1 style="font-size:16px;">Reflection Depth Index — trend</h1>
+    </div>
+    <svg id="rdiChart" width="100%" height="120" viewBox="0 0 600 120" preserveAspectRatio="none"></svg>
+  </div>
+</div>
+
+<!-- Firebase modular SDK (client-side; the config below is a PUBLIC identifier, not a secret) -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+  import {
+    getAuth, onAuthStateChanged, signInWithEmailAndPassword,
+    createUserWithEmailAndPassword, signOut
+  } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+  import {
+    getFirestore, collection, doc, addDoc, updateDoc, query,
+    orderBy, limit, getDocs, serverTimestamp
+  } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+
+  // TODO: replace with YOUR Firebase project's web config (Project settings → General → Your apps).
+  // This is public by design — Firestore security rules (firestore.rules) are what actually protect data.
+  const firebaseConfig = {
+  apiKey: "AIzaSyA9yas27DPWP4aiPnwL5hP-50337M9wTwM",
+  authDomain: "ashish-gemini-journal.firebaseapp.com",
+  projectId: "ashish-gemini-journal",
+  storageBucket: "ashish-gemini-journal.firebasestorage.app",
+  messagingSenderId: "15125922831",
+  appId: "1:15125922831:web:567b7abaa27159e4754f7a",
+  measurementId: "G-BFFMJ28Z6F"
+};
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  // Same-origin on Cloud Run in production; override for local dev if serving frontend separately.
+  const API_BASE = window.location.origin;
+
+  let currentUser = null;
+  let currentSessionId = null;
+  let history = [];      // Gemini-format: [{role:'user'|'model', parts:[{text}]}]
+  let transcriptLines = []; // plain text lines for the RDI scoring call
+
+  const $ = (id) => document.getElementById(id);
+
+  // ---------- Auth ----------
+  $("signInBtn").onclick = async () => {
+    try {
+      await signInWithEmailAndPassword(auth, $("email").value, $("password").value);
+    } catch (e) { $("authError").textContent = e.message; }
+  };
+  $("signUpBtn").onclick = async () => {
+    try {
+      await createUserWithEmailAndPassword(auth, $("email").value, $("password").value);
+    } catch (e) { $("authError").textContent = e.message; }
+  };
+  $("signOutBtn").onclick = () => signOut(auth);
+
+  onAuthStateChanged(auth, (user) => {
+    currentUser = user;
+    if (user) {
+      $("auth-screen").classList.add("hidden");
+      $("app-screen").classList.remove("hidden");
+      $("userEmail").textContent = user.email;
+      loadRdiTrend();
+    } else {
+      $("auth-screen").classList.remove("hidden");
+      $("app-screen").classList.add("hidden");
+    }
+  });
+
+  // ---------- Chat ----------
+  function appendMessage(role, text) {
+    const div = document.createElement("div");
+    div.className = "msg " + (role === "user" ? "user" : "model");
+    div.textContent = text;
+    $("messages").appendChild(div);
+    $("messages").scrollTop = $("messages").scrollHeight;
+  }
+
+  async function ensureSession() {
+    if (currentSessionId) return currentSessionId;
+    const ref = await addDoc(collection(db, "users", currentUser.uid, "sessions"), {
+      createdAt: serverTimestamp(),
+      ended: false,
+    });
+    currentSessionId = ref.id;
+    $("sessionStatus").textContent = "Session: " + ref.id.slice(0, 8);
+    return currentSessionId;
+  }
+
+  $("sendBtn").onclick = async () => {
+    const text = $("messageInput").value.trim();
+    if (!text) return;
+    $("messageInput").value = "";
+    $("sendBtn").disabled = true;
+
+    appendMessage("user", text);
+    transcriptLines.push("User: " + text);
+    await ensureSession();
+
+    try {
+      const idToken = await currentUser.getIdToken();
+      const res = await fetch(API_BASE + "/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + idToken },
+        body: JSON.stringify({ history, message: text }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Request failed");
+
+      appendMessage("model", data.reply);
+      transcriptLines.push("Journal (Gemini): " + data.reply);
+      history.push({ role: "user", parts: [{ text }] });
+      history.push({ role: "model", parts: [{ text: data.reply }] });
+    } catch (e) {
+      appendMessage("model", "⚠️ " + e.message);
+    } finally {
+      $("sendBtn").disabled = false;
+    }
+  };
+
+  // ---------- End session + RDI ----------
+  $("endSessionBtn").onclick = async () => {
+    if (!currentSessionId || transcriptLines.length === 0) {
+      $("rdi-summary").textContent = "Nothing to score yet — send a message first.";
+      return;
+    }
+    $("endSessionBtn").disabled = true;
+    $("rdi-summary").textContent = "Scoring session…";
+
+    try {
+      const idToken = await currentUser.getIdToken();
+      const res = await fetch(API_BASE + "/api/end-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + idToken },
+        body: JSON.stringify({ transcript: transcriptLines.join("\n") }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Scoring failed");
+
+      // Client writes the result to its OWN Firestore doc — gated by firestore.rules.
+      await updateDoc(doc(db, "users", currentUser.uid, "sessions", currentSessionId), {
+        ended: true,
+        endedAt: serverTimestamp(),
+        summary: result.summary,
+        rdiScore: result.rdi_score,
+        rdiReasoning: result.rdi_reasoning,
+      });
+
+      $("rdi-summary").innerHTML =
+        `<strong>RDI: ${result.rdi_score}/100</strong><br>${result.summary}<br><span class="muted">${result.rdi_reasoning}</span>`;
+
+      // Reset for a fresh session
+      currentSessionId = null;
+      history = [];
+      transcriptLines = [];
+      $("sessionStatus").textContent = "New session";
+      loadRdiTrend();
+    } catch (e) {
+      $("rdi-summary").textContent = "⚠️ " + e.message;
+    } finally {
+      $("endSessionBtn").disabled = false;
+    }
+  };
+
+  // ---------- RDI trend ----------
+  async function loadRdiTrend() {
+    const q = query(
+      collection(db, "users", currentUser.uid, "sessions"),
+      orderBy("createdAt", "desc"),
+      limit(20)
+    );
+    const snap = await getDocs(q);
+    const scores = [];
+    snap.forEach((d) => {
+      const v = d.data();
+      if (typeof v.rdiScore === "number") scores.push(v.rdiScore);
+    });
+    scores.reverse(); // chronological
+    drawSparkline(scores);
+  }
+
+  function drawSparkline(scores) {
+    const svg = $("rdiChart");
+    svg.innerHTML = "";
+    if (scores.length === 0) {
+      svg.innerHTML = '<text x="10" y="60">No scored sessions yet.</text>';
+      return;
+    }
+    const w = 600, h = 120, pad = 10;
+    const stepX = scores.length > 1 ? (w - 2 * pad) / (scores.length - 1) : 0;
+    const points = scores.map((s, i) => {
+      const x = pad + i * stepX;
+      const y = h - pad - (s / 100) * (h - 2 * pad);
+      return `${x},${y}`;
+    });
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+    path.setAttribute("points", points.join(" "));
+    path.setAttribute("fill", "none");
+    path.setAttribute("stroke", "#7c9eff");
+    path.setAttribute("stroke-width", "2");
+    svg.appendChild(path);
+
+    scores.forEach((s, i) => {
+      const [x, y] = points[i].split(",");
+      const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      circle.setAttribute("cx", x); circle.setAttribute("cy", y); circle.setAttribute("r", "3");
+      circle.setAttribute("fill", "#7c9eff");
+      svg.appendChild(circle);
+    });
+  }
+</script>
+</body>
+</html>
