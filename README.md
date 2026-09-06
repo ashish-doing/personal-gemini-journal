@@ -22,6 +22,7 @@
   <a href="https://github.com/ashish-doing/personal-gemini-journal">
   <img src="https://img.shields.io/badge/%F0%9F%93%82%20Source-GitHub-181717?style=for-the-badge&logo=github&logoColor=white" /></a>
   <a href="./SECURITY_CONSTITUTION.md"><img src="https://img.shields.io/badge/%F0%9F%94%92%20Security%20Constitution-read-6B4FFF?style=for-the-badge" /></a>
+  <a href="./ARCHITECTURE.md"><img src="https://img.shields.io/badge/%F0%9F%93%90%20Architecture-deep%20dive-8a3ffc?style=for-the-badge" /></a>
 </p>
 
 </div>
@@ -138,6 +139,10 @@ The deploy prints a public `https://...run.app` URL — that's your **Working Pr
 [![GitHub](https://img.shields.io/badge/GitHub-ashish--doing-181717?style=flat-square&logo=github)](https://github.com/ashish-doing)
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-ashish--kumar-0A66C2?style=flat-square&logo=linkedin)](https://linkedin.com/in/ashish-kumar-014aaa3b9)
 [![HuggingFace](https://img.shields.io/badge/HuggingFace-ashish--doing-FF9D00?style=flat-square&logo=huggingface)](https://huggingface.co/ashish-doing)
+
+---
+
+MIT — see [LICENSE](./LICENSE) for details.
 
 ---
 
